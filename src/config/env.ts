@@ -32,12 +32,9 @@ function optional(name: string, fallback: string): string {
  * as credenciais configuradas.
  */
 export function getChatConfig() {
-  const baseApiUrl = process.env.BOTPRESS_CHAT_API_URL?.trim();
   return {
     webhookId: required("BOTPRESS_WEBHOOK_ID"),
-    // Só sobrescreve a base quando explicitamente configurada;
-    // caso contrário o SDK usa https://chat.botpress.cloud por padrão.
-    baseApiUrl: baseApiUrl && baseApiUrl.length > 0 ? baseApiUrl : undefined,
+    apiUrl: optional("BOTPRESS_CHAT_API_URL", "https://chat.botpress.cloud"),
   };
 }
 
@@ -55,3 +52,4 @@ export function getManagementConfig() {
     apiUrl: optional("BOTPRESS_API_BASE_URL", "https://api.botpress.cloud"),
   };
 }
+2
