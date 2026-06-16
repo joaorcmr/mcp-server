@@ -5,6 +5,8 @@ import type { ToolDefinition } from "./tools/tool.js";
 import { sendMessageToBotpressTool } from "./tools/send-message-to-botpress.tool.js";
 import { listWorkflowsTool } from "./tools/list-workflows.tool.js";
 import { startWorkflowTool } from "./tools/start-workflow.tool.js";
+import { listTablesTool } from "./tools/list-tables.tool.js";
+import { listKnowledgeBasesTool } from "./tools/list-knowledge-bases.tool.js";
 
 /**
  * Entrypoint do MCP Server do Botpress.
@@ -25,6 +27,8 @@ const tools: ToolDefinition[] = [
   sendMessageToBotpressTool,
   listWorkflowsTool,
   startWorkflowTool,
+  listTablesTool,
+  listKnowledgeBasesTool,
 ];
 
 for (const tool of tools) {

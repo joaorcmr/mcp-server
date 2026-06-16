@@ -102,6 +102,44 @@ export async function getWorkflow(id: string): Promise<WorkflowSummary> {
   return toSummary(res.workflow);
 }
 
+/** Visão normalizada de uma tabela. */
+export interface TableSummary {
+  id: string;
+  name: string;
+  factor?: number;
+  frozen?: boolean;
+}
+
+/** READ: lista as tabelas do bot. */
+export async function listTables(): Promise<TableSummary[]> {
+  const res = await getManagementClient().listTables({});
+  return res.tables.map((t) => ({
+    id: t.id,
+    name: t.name,
+    factor: t.factor,
+    frozen: t.frozen,
+  }));
+}
+
+/** Visão normalizada de uma knowledge base. */
+export interface KnowledgeBaseSummary {
+  id: string;
+  name: string;
+  createdAt?: string;
+  tags?: Record<string, string>;
+}
+
+/** READ: lista as knowledge bases do bot. */
+export async function listKnowledgeBases(): Promise<KnowledgeBaseSummary[]> {
+  const res = await getManagementClient().listKnowledgeBases({});
+  return res.knowledgeBases.map((k) => ({
+    id: k.id,
+    name: k.name,
+    createdAt: k.createdAt,
+    tags: k.tags,
+  }));
+}
+
 /** WRITE: inicia uma nova execução de workflow pelo nome definido no bot. */
 export async function startWorkflow(args: {
   name: string;
