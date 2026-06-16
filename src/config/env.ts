@@ -34,7 +34,9 @@ function optional(name: string, fallback: string): string {
 export function getChatConfig() {
   return {
     webhookId: required("BOTPRESS_WEBHOOK_ID"),
-    apiUrl: optional("BOTPRESS_CHAT_API_URL", "https://chat.botpress.cloud"),
+    // O SDK @botpress/chat espera `baseApiUrl` na variante por webhook e usa
+    // https://chat.botpress.cloud por padrão; só sobrescrevemos se configurado.
+    baseApiUrl: process.env.BOTPRESS_CHAT_API_URL?.trim() || undefined,
   };
 }
 

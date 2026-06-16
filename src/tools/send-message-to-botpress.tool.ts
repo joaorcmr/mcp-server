@@ -1,22 +1,7 @@
 import { z } from "zod";
 import { sendMessageToBot } from "../botpress/botpress-client.js";
 import { formatBotpressError } from "../botpress/errors.js";
-
-/**
- * Forma de uma tool MCP neste projeto. Cada tool exporta um objeto com
- * nome, descrição, schema de entrada (zod) e handler. O `index.ts` registra
- * todas as tools deste formato no servidor.
- */
-export interface ToolDefinition {
-  name: string;
-  title: string;
-  description: string;
-  inputSchema: z.ZodRawShape;
-  handler: (args: any) => Promise<{
-    content: { type: "text"; text: string }[];
-    isError?: boolean;
-  }>;
-}
+import type { ToolDefinition } from "./tool.js";
 
 const inputSchema = {
   message: z

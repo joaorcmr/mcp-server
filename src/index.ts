@@ -1,7 +1,10 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
-import { sendMessageToBotpressTool, type ToolDefinition } from "./tools/send-message-to-botpress.tool.js";
+import type { ToolDefinition } from "./tools/tool.js";
+import { sendMessageToBotpressTool } from "./tools/send-message-to-botpress.tool.js";
+import { listWorkflowsTool } from "./tools/list-workflows.tool.js";
+import { startWorkflowTool } from "./tools/start-workflow.tool.js";
 
 /**
  * Entrypoint do MCP Server do Botpress.
@@ -18,7 +21,11 @@ const server = new McpServer({
 
 // Registre aqui todas as tools. Para adicionar uma nova, basta criar o arquivo
 // em src/tools/ exportando um ToolDefinition e incluí-lo nesta lista.
-const tools: ToolDefinition[] = [sendMessageToBotpressTool];
+const tools: ToolDefinition[] = [
+  sendMessageToBotpressTool,
+  listWorkflowsTool,
+  startWorkflowTool,
+];
 
 for (const tool of tools) {
   server.registerTool(

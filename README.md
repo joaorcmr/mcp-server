@@ -92,7 +92,7 @@ npm run dev        # tsx watch, lê o .env automaticamente
 npm run typecheck  # checagem de tipos sem emitir
 ```
 
-## Tool disponível
+## Tools disponíveis
 
 ### `send_message_to_botpress`
 
@@ -120,6 +120,22 @@ Envia uma mensagem ao bot e aguarda a(s) resposta(s).
 Em caso de falha, retorna `{ "ok": false, "error": { "message": "...", "type": "...", "code": "..." } }` com `isError: true`.
 
 > Como o bot responde de forma assíncrona, o servidor abre um stream (`listenConversation`), envia a mensagem e coleta as respostas marcadas com `isBot`. Aguarda até `timeoutMs` (padrão 30s) pela 1ª resposta e mais `idleMs` (padrão 2s) por mensagens adicionais.
+
+### `list_workflows` (READ)
+
+Lista **execuções** (instâncias em runtime) de workflows do bot, via Management API. Usa `BOTPRESS_TOKEN`/`BOTPRESS_BOT_ID`/`BOTPRESS_WORKSPACE_ID`.
+
+**Entrada (todos opcionais):** `name`, `conversationId`, `userId`, `statuses` (array), `pageSize`.
+**Saída:** `{ ok, count, workflows: [{ id, name, status, input, output, conversationId, createdAt, ... }] }`.
+
+> ⚠️ Lista execuções, **não** o desenho do fluxo. O desenho (nós/transições do Studio) não é exposto por esta API.
+
+### `start_workflow` (WRITE)
+
+Inicia uma nova **execução** de um workflow do bot, pelo `name`. Cria uma instância em runtime (efeito real no ambiente).
+
+**Entrada:** `name` (obrigatório), `status` (`pending`|`in_progress`|`listening`, padrão `pending`), `input` (objeto), `conversationId`, `userId` (opcionais).
+**Saída:** `{ ok, workflow: { id, name, status, ... } }`.
 
 ## Próximas tools (roadmap)
 
