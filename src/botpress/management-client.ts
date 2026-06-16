@@ -121,6 +121,55 @@ export async function listTables(): Promise<TableSummary[]> {
   }));
 }
 
+/** Schema (colunas) de uma tabela. */
+export interface TableSchema {
+  id: string;
+  name: string;
+  columns: { name: string; type?: string; nullable?: boolean }[];
+}
+
+/** READ: schema/colunas de uma tabela (id ou nome). */
+export async function getTable(table: string): Promise<TableSchema> {
+  const res = await getManagementClient().getTable({ table });
+  const props = (res.table.schema?.properties ?? {}) as Record<
+    string,
+    { type?: string; "x-nullable"?: boolean; nullable?: boolean }
+  >;
+  return {
+    id: res.table.id,
+    name: res.table.name,
+    columns: Object.entries(props).map(([name, def]) => ({
+      name,
+      type: def?.type,
+      nullable: def?.nullable ?? def?.["x-nullable"],
+    })),
+  };
+}
+
+export interface FindTableRowsOptions {
+  table: string;
+  limit?: number;
+  offset?: number;
+  /** filtro estilo mongodb, ex.: { "AgenteProcessoCompraContador": { "$gte": 3 } } */
+  filter?: Record<string, unknown>;
+  /** agregação por coluna, ex.: { "intentId": "key", "phraseId": ["count"] } */
+  group?: Record<string, unknown>;
+  /** colunas a retornar (system columns sempre incluídas). */
+  select?: string[];
+  orderBy?: string;
+  orderDirection?: "asc" | "desc";
+}
+
+/** READ: lê/consulta linhas de uma tabela (com filtro, agregação e paginação). */
+export async function findTableRows(options: FindTableRowsOptions): Promise<{
+  rows: unknown[];
+  count: number;
+}> {
+  const { table, ...body } = options;
+  const res = await getManagementClient().findTableRows({ table, ...body });
+  return { rows: res.rows ?? [], count: res.rows?.length ?? 0 };
+}
+
 /** Visão normalizada de uma knowledge base. */
 export interface KnowledgeBaseSummary {
   id: string;

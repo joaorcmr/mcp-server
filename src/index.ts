@@ -7,6 +7,8 @@ import { listWorkflowsTool } from "./tools/list-workflows.tool.js";
 import { startWorkflowTool } from "./tools/start-workflow.tool.js";
 import { listTablesTool } from "./tools/list-tables.tool.js";
 import { listKnowledgeBasesTool } from "./tools/list-knowledge-bases.tool.js";
+import { getTableTool } from "./tools/get-table.tool.js";
+import { findTableRowsTool } from "./tools/find-table-rows.tool.js";
 
 /**
  * Entrypoint do MCP Server do Botpress.
@@ -29,6 +31,8 @@ const tools: ToolDefinition[] = [
   startWorkflowTool,
   listTablesTool,
   listKnowledgeBasesTool,
+  getTableTool,
+  findTableRowsTool,
 ];
 
 for (const tool of tools) {
