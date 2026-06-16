@@ -1,0 +1,46 @@
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+
+import { sendMessageToBotpressTool, type ToolDefinition } from "./tools/send-message-to-botpress.tool.js";
+
+/**
+ * Entrypoint do MCP Server do Botpress.
+ *
+ * Roda localmente via stdio para ser consumido pelo Claude Code. NUNCA escreva
+ * em stdout com console.log: isso corromperia o protocolo JSON-RPC. Use
+ * console.error para logs/diagnóstico (vai para stderr).
+ */
+
+const server = new McpServer({
+  name: "botpress-mcp-server",
+  version: "0.1.0",
+});
+
+// Registre aqui todas as tools. Para adicionar uma nova, basta criar o arquivo
+// em src/tools/ exportando um ToolDefinition e incluí-lo nesta lista.
+const tools: ToolDefinition[] = [sendMessageToBotpressTool];
+
+for (const tool of tools) {
+  server.registerTool(
+    tool.name,
+    {
+      title: tool.title,
+      description: tool.description,
+      inputSchema: tool.inputSchema,
+    },
+    tool.handler,
+  );
+}
+
+async function main() {
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+  console.error(
+    `[botpress-mcp-server] conectado via stdio. Tools: ${tools.map((t) => t.name).join(", ")}`,
+  );
+}
+
+main().catch((err) => {
+  console.error("[botpress-mcp-server] erro fatal ao iniciar:", err);
+  process.exit(1);
+});
