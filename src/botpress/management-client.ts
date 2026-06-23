@@ -189,6 +189,119 @@ export async function listKnowledgeBases(): Promise<KnowledgeBaseSummary[]> {
   }));
 }
 
+/** Extrai o texto de uma payload de mensagem do Botpress, quando do tipo "text". */
+function extractText(payload: unknown): string | undefined {
+  if (payload && typeof payload === "object" && "text" in payload) {
+    const text = (payload as { text?: unknown }).text;
+    return typeof text === "string" ? text : undefined;
+  }
+  return undefined;
+}
+
+/** Visão normalizada de uma conversa (Runtime API). */
+export interface ConversationSummary {
+  id: string;
+  channel?: string;
+  integration?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  tags?: Record<string, string>;
+}
+
+/**
+ * READ: lista conversas do bot (mais recentes primeiro por padrão), com filtro
+ * por tags, canal, participantes e período. Use `tags` para localizar a conversa
+ * de um número de WhatsApp (o telefone costuma viver em uma tag, não em query
+ * direta). Paginação via `nextToken`.
+ */
+export async function listConversations(filters: {
+  tags?: Record<string, string>;
+  participantIds?: string[];
+  channel?: string;
+  integrationName?: string;
+  afterDate?: string;
+  beforeDate?: string;
+  sortField?: "createdAt" | "updatedAt";
+  sortDirection?: "asc" | "desc";
+  pageSize?: number;
+  nextToken?: string;
+}): Promise<{ conversations: ConversationSummary[]; nextToken?: string }> {
+  const res = await getManagementClient().listConversations({
+    tags: filters.tags,
+    participantIds: filters.participantIds,
+    channel: filters.channel,
+    integrationName: filters.integrationName,
+    afterDate: filters.afterDate,
+    beforeDate: filters.beforeDate,
+    sortField: filters.sortField,
+    sortDirection: filters.sortDirection,
+    pageSize: filters.pageSize,
+    nextToken: filters.nextToken,
+  });
+  return {
+    conversations: res.conversations.map((c) => ({
+      id: c.id,
+      channel: c.channel,
+      integration: c.integration,
+      createdAt: c.createdAt,
+      updatedAt: c.updatedAt,
+      tags: c.tags,
+    })),
+    nextToken: res.meta?.nextToken,
+  };
+}
+
+/** Visão normalizada de uma mensagem (Runtime API). */
+export interface MessageSummary {
+  id: string;
+  createdAt?: string;
+  type?: string;
+  direction?: "incoming" | "outgoing";
+  /** texto extraído quando a payload é do tipo "text". */
+  text?: string;
+  payload?: unknown;
+  userId?: string;
+  conversationId?: string;
+  tags?: Record<string, string>;
+}
+
+/**
+ * READ: lista o histórico de mensagens, normalmente filtrado por `conversationId`.
+ * Suporta filtro por período (afterDate/beforeDate ISO 8601) e tags, com paginação
+ * via `nextToken`.
+ */
+export async function listMessages(filters: {
+  conversationId?: string;
+  tags?: Record<string, string>;
+  afterDate?: string;
+  beforeDate?: string;
+  pageSize?: number;
+  nextToken?: string;
+}): Promise<{ messages: MessageSummary[]; nextToken?: string }> {
+  const res = await getManagementClient().listMessages({
+    conversationId: filters.conversationId,
+    tags: filters.tags,
+    afterDate: filters.afterDate,
+    beforeDate: filters.beforeDate,
+    pageSize: filters.pageSize,
+    nextToken: filters.nextToken,
+  });
+  return {
+    messages: res.messages.map((m) => ({
+      id: m.id,
+      createdAt: m.createdAt,
+      type: m.type,
+      direction: m.direction,
+      text: extractText(m.payload),
+      payload: m.payload,
+      userId: m.userId,
+      conversationId: m.conversationId,
+      tags: m.tags,
+    })),
+    nextToken: res.meta?.nextToken,
+  };
+}
+
 /** WRITE: inicia uma nova execução de workflow pelo nome definido no bot. */
 export async function startWorkflow(args: {
   name: string;

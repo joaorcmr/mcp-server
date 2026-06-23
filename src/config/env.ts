@@ -1,7 +1,17 @@
 import { config as loadDotenv } from "dotenv";
+import { fileURLToPath } from "node:url";
+import { dirname, resolve } from "node:path";
 
 // Carrega o .env uma única vez quando este módulo é importado.
-loadDotenv();
+//
+// IMPORTANTE: resolvemos o caminho do .env a partir da localização deste
+// módulo (não do process.cwd()). Quando o Claude Code sobe o MCP server, o
+// cwd pode ser qualquer diretório; sem isto o dotenv não acharia o .env e as
+// tools de Management falhariam. Este arquivo fica em <repo>/src/config (ou
+// <repo>/dist/config quando compilado), então o .env está dois níveis acima.
+const moduleDir = dirname(fileURLToPath(import.meta.url));
+const envPath = resolve(moduleDir, "../../.env");
+loadDotenv({ path: envPath });
 
 /**
  * Lê uma variável de ambiente obrigatória e lança um erro legível

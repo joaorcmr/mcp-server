@@ -9,6 +9,8 @@ import { listTablesTool } from "./tools/list-tables.tool.js";
 import { listKnowledgeBasesTool } from "./tools/list-knowledge-bases.tool.js";
 import { getTableTool } from "./tools/get-table.tool.js";
 import { findTableRowsTool } from "./tools/find-table-rows.tool.js";
+import { listConversationsTool } from "./tools/list-conversations.tool.js";
+import { listMessagesTool } from "./tools/list-messages.tool.js";
 
 /**
  * Entrypoint do MCP Server do Botpress.
@@ -33,6 +35,8 @@ const tools: ToolDefinition[] = [
   listKnowledgeBasesTool,
   getTableTool,
   findTableRowsTool,
+  listConversationsTool,
+  listMessagesTool,
 ];
 
 for (const tool of tools) {
