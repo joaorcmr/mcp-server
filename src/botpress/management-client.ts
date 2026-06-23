@@ -302,6 +302,47 @@ export async function listMessages(filters: {
   };
 }
 
+/** Uma entrada de log do bot (Admin API getBotLogs). */
+export interface BotLogEntry {
+  timestamp: string;
+  level: string;
+  message: string;
+  workflowId?: string;
+  userId?: string;
+  conversationId?: string;
+}
+
+/**
+ * READ: lê os logs do bot (Admin API getBotLogs), filtrados por período
+ * (timeStart é obrigatório) e, opcionalmente, por nível, usuário, workflow,
+ * conversa ou trecho da mensagem. Paginação via nextToken. Útil para diagnosticar
+ * por que uma conversa parou (ex.: erro de execução, HITL não liberado).
+ */
+export async function getBotLogs(filters: {
+  timeStart: string;
+  timeEnd?: string;
+  level?: string;
+  userId?: string;
+  workflowId?: string;
+  conversationId?: string;
+  messageContains?: string;
+  nextToken?: string;
+}): Promise<{ logs: BotLogEntry[]; nextToken?: string }> {
+  const { botId } = getManagementConfig();
+  const res = await getManagementClient().getBotLogs({
+    id: botId,
+    timeStart: filters.timeStart,
+    timeEnd: filters.timeEnd,
+    level: filters.level,
+    userId: filters.userId,
+    workflowId: filters.workflowId,
+    conversationId: filters.conversationId,
+    messageContains: filters.messageContains,
+    nextToken: filters.nextToken,
+  });
+  return { logs: res.logs, nextToken: res.nextToken };
+}
+
 /** WRITE: inicia uma nova execução de workflow pelo nome definido no bot. */
 export async function startWorkflow(args: {
   name: string;

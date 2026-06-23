@@ -11,6 +11,7 @@ import { getTableTool } from "./tools/get-table.tool.js";
 import { findTableRowsTool } from "./tools/find-table-rows.tool.js";
 import { listConversationsTool } from "./tools/list-conversations.tool.js";
 import { listMessagesTool } from "./tools/list-messages.tool.js";
+import { getBotLogsTool } from "./tools/get-bot-logs.tool.js";
 
 /**
  * Entrypoint do MCP Server do Botpress.
@@ -37,6 +38,7 @@ const tools: ToolDefinition[] = [
   findTableRowsTool,
   listConversationsTool,
   listMessagesTool,
+  getBotLogsTool,
 ];
 
 for (const tool of tools) {
