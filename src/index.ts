@@ -16,6 +16,7 @@ import { getStateTool } from "./tools/get-state.tool.js";
 import { setStateTool } from "./tools/set-state.tool.js";
 import { patchStateTool } from "./tools/patch-state.tool.js";
 import { deleteConversationTool } from "./tools/delete-conversation.tool.js";
+import { releaseHitlTool } from "./tools/release-hitl.tool.js";
 
 /**
  * Entrypoint do MCP Server do Botpress.
@@ -47,6 +48,7 @@ const tools: ToolDefinition[] = [
   setStateTool,
   patchStateTool,
   deleteConversationTool,
+  releaseHitlTool,
 ];
 
 for (const tool of tools) {

@@ -439,6 +439,58 @@ export async function deleteConversation(id: string): Promise<{ id: string; dele
   return { id, deleted: true };
 }
 
+/**
+ * Nome do state (namespaced pelo plugin `hitl`) que controla a pausa do bot
+ * durante um handoff humano. Payload: `{ hitlActive: boolean }`. Enquanto
+ * `hitlActive` for `true`, o bot ignora as mensagens do usuário e as repassa ao
+ * atendente; ao virar `false`, o bot volta a responder.
+ */
+export const HITL_STATE_NAME = "hitl#hitl";
+
+/**
+ * WRITE: libera uma conversa presa em HITL, virando `hitlActive` para `false` no
+ * state `hitl#hitl` (atalho semântico sobre patch_state). Lê o valor anterior para
+ * relatório. ATENÇÃO: é um flip cirúrgico do state — NÃO executa o fluxo normal de
+ * stopHitl, então o lado do atendente (ex.: ticket Zendesk) não é fechado e a
+ * mensagem onHitlStoppedMessage pode não ser enviada. Apenas despausa o bot.
+ */
+export async function releaseHitl(conversationId: string): Promise<{
+  conversationId: string;
+  previousHitlActive?: boolean;
+  hitlActive: boolean;
+  alreadyReleased: boolean;
+}> {
+  const client = getManagementClient();
+  let previousHitlActive: boolean | undefined;
+  try {
+    const before = await client.getState({
+      type: "conversation",
+      id: conversationId,
+      name: HITL_STATE_NAME,
+    });
+    const p = before.state.payload as { hitlActive?: boolean } | null;
+    previousHitlActive = p?.hitlActive;
+  } catch {
+    // Se o state ainda não existe, seguimos e o patch o cria com hitlActive:false.
+  }
+  if (previousHitlActive === false) {
+    return { conversationId, previousHitlActive, hitlActive: false, alreadyReleased: true };
+  }
+  const res = await client.patchState({
+    type: "conversation",
+    id: conversationId,
+    name: HITL_STATE_NAME,
+    payload: { hitlActive: false },
+  });
+  const after = res.state.payload as { hitlActive?: boolean } | null;
+  return {
+    conversationId,
+    previousHitlActive,
+    hitlActive: after?.hitlActive ?? false,
+    alreadyReleased: false,
+  };
+}
+
 /** WRITE: inicia uma nova execução de workflow pelo nome definido no bot. */
 export async function startWorkflow(args: {
   name: string;
