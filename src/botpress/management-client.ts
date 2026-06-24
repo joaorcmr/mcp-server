@@ -343,6 +343,102 @@ export async function getBotLogs(filters: {
   return { logs: res.logs, nextToken: res.nextToken };
 }
 
+/** Tipos de recurso aos quais um State pode estar vinculado. */
+export type StateType = "conversation" | "user" | "bot" | "integration" | "workflow";
+
+/** Visão normalizada de um State (payload + expiry). */
+export interface StateSummary {
+  id: string;
+  type?: string;
+  name?: string;
+  payload?: unknown;
+}
+
+/**
+ * READ: lê o State (payload) de um recurso. Útil ANTES de patch/set para saber
+ * o nome e o conteúdo atual do state (ex.: o state de HITL de uma conversa).
+ */
+export async function getState(args: {
+  type: StateType;
+  id: string;
+  name: string;
+}): Promise<StateSummary> {
+  const res = await getManagementClient().getState({
+    type: args.type,
+    id: args.id,
+    name: args.name,
+  });
+  return {
+    id: res.state.id,
+    type: (res.state as { type?: string }).type,
+    name: (res.state as { name?: string }).name,
+    payload: res.state.payload,
+  };
+}
+
+/**
+ * WRITE: SOBRESCREVE por completo o payload de um State (POST /v1/chat/states/...).
+ * Substitui o payload anterior — campos não enviados são DESCARTADOS. Aceita um
+ * `expiry` opcional (TTL ocioso em ms, máx. 30 dias / 2592000000). Use patchState
+ * para mesclar em vez de sobrescrever.
+ */
+export async function setState(args: {
+  type: StateType;
+  id: string;
+  name: string;
+  payload: Record<string, unknown> | null;
+  expiry?: number | null;
+}): Promise<StateSummary> {
+  const res = await getManagementClient().setState({
+    type: args.type,
+    id: args.id,
+    name: args.name,
+    payload: args.payload,
+    expiry: args.expiry,
+  });
+  return {
+    id: res.state.id,
+    type: (res.state as { type?: string }).type,
+    name: (res.state as { name?: string }).name,
+    payload: res.state.payload,
+  };
+}
+
+/**
+ * WRITE: MESCLA valores no payload de um State (PATCH /v1/chat/states/...).
+ * Campos não enviados são PRESERVADOS. Aceita `expiry` opcional (ms, máx. 30 dias).
+ */
+export async function patchState(args: {
+  type: StateType;
+  id: string;
+  name: string;
+  payload: Record<string, unknown>;
+  expiry?: number | null;
+}): Promise<StateSummary> {
+  const res = await getManagementClient().patchState({
+    type: args.type,
+    id: args.id,
+    name: args.name,
+    payload: args.payload,
+    expiry: args.expiry,
+  });
+  return {
+    id: res.state.id,
+    type: (res.state as { type?: string }).type,
+    name: (res.state as { name?: string }).name,
+    payload: res.state.payload,
+  };
+}
+
+/**
+ * WRITE (DESTRUTIVO): apaga uma conversa pelo id (DELETE /v1/chat/conversations/{id}).
+ * Remove a conversa e suas mensagens. Operação irreversível.
+ */
+export async function deleteConversation(id: string): Promise<{ id: string; deleted: true }> {
+  await getManagementClient().deleteConversation({ id });
+  return { id, deleted: true };
+}
+
 /** WRITE: inicia uma nova execução de workflow pelo nome definido no bot. */
 export async function startWorkflow(args: {
   name: string;

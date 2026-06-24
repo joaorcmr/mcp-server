@@ -12,6 +12,10 @@ import { findTableRowsTool } from "./tools/find-table-rows.tool.js";
 import { listConversationsTool } from "./tools/list-conversations.tool.js";
 import { listMessagesTool } from "./tools/list-messages.tool.js";
 import { getBotLogsTool } from "./tools/get-bot-logs.tool.js";
+import { getStateTool } from "./tools/get-state.tool.js";
+import { setStateTool } from "./tools/set-state.tool.js";
+import { patchStateTool } from "./tools/patch-state.tool.js";
+import { deleteConversationTool } from "./tools/delete-conversation.tool.js";
 
 /**
  * Entrypoint do MCP Server do Botpress.
@@ -39,6 +43,10 @@ const tools: ToolDefinition[] = [
   listConversationsTool,
   listMessagesTool,
   getBotLogsTool,
+  getStateTool,
+  setStateTool,
+  patchStateTool,
+  deleteConversationTool,
 ];
 
 for (const tool of tools) {
