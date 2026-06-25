@@ -7,6 +7,7 @@ import { listWorkflowsTool } from "./tools/list-workflows.tool.js";
 import { startWorkflowTool } from "./tools/start-workflow.tool.js";
 import { listTablesTool } from "./tools/list-tables.tool.js";
 import { listKnowledgeBasesTool } from "./tools/list-knowledge-bases.tool.js";
+import { searchKnowledgeBaseTool } from "./tools/search-knowledge-base.tool.js";
 import { getTableTool } from "./tools/get-table.tool.js";
 import { findTableRowsTool } from "./tools/find-table-rows.tool.js";
 import { listConversationsTool } from "./tools/list-conversations.tool.js";
@@ -39,6 +40,7 @@ const tools: ToolDefinition[] = [
   startWorkflowTool,
   listTablesTool,
   listKnowledgeBasesTool,
+  searchKnowledgeBaseTool,
   getTableTool,
   findTableRowsTool,
   listConversationsTool,

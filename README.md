@@ -137,12 +137,25 @@ Inicia uma nova **execução** de um workflow do bot, pelo `name`. Cria uma inst
 **Entrada:** `name` (obrigatório), `status` (`pending`|`in_progress`|`listening`, padrão `pending`), `input` (objeto), `conversationId`, `userId` (opcionais).
 **Saída:** `{ ok, workflow: { id, name, status, ... } }`.
 
+### `search_knowledge_base` (READ)
+
+Busca semântica (RAG) sobre o **conteúdo** dos documentos das knowledge bases — o mesmo retrieval que o bot usa em runtime. Diferente de `list_knowledge_bases` (que só lista as KBs), esta tool **lê o texto indexado**, permitindo validar se uma informação realmente consta numa KB e como está redigida.
+
+**Entrada:**
+- `query` (string, obrigatório) — pergunta/termo a buscar.
+- `knowledgeBaseId` (string, opcional) — restringe a uma KB. Aceita o id ao vivo (`kb_01...`) ou o legado (`kb-...`); o id ao vivo é resolvido para a tag `kbId` dos arquivos automaticamente.
+- `limit` (number, opcional) — máx. de trechos (recomendado 5-8).
+- `withContext` (bool) / `contextDepth` (number) — incluem trechos vizinhos ao match.
+
+**Saída:** `{ ok, count, kbTagId?, passages: [{ content, score, kbId, title, fileId, fileKey, passageType, pageNumber, position }] }`.
+
+> Por baixo, uma KB é um conjunto de arquivos (Files API) com tag `source: "knowledge-base"` e `kbId: <id>`. Para KBs migradas, esse `kbId` é o id **legado** (`kb-...`), por isso o id ao vivo é convertido via `oldKbId`.
+
 ## Próximas tools (roadmap)
 
 Usarão majoritariamente a **Management API** (`@botpress/client`, já instalado), com a config em `getManagementConfig()`:
 
 - `get_conversation`, `list_conversations` (Chat API)
-- `query_knowledge_base`
 - `list_tables`, `create_table_record`
 - `get_bot_info`
 - `test_intent_detection`

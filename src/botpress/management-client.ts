@@ -189,6 +189,84 @@ export async function listKnowledgeBases(): Promise<KnowledgeBaseSummary[]> {
   }));
 }
 
+/**
+ * Resolve o id de uma KB para o valor que aparece na tag `kbId` dos arquivos.
+ *
+ * Por baixo, uma KB é um conjunto de arquivos (Files API) com a tag
+ * `source: "knowledge-base"` e `kbId: <id>`. Para KBs migradas, esse `kbId` é o
+ * id LEGADO (`kb-...`, exposto como `oldKbId` em listKnowledgeBases), não o id ao
+ * vivo (`kb_01...`). Aqui aceitamos qualquer um dos dois e devolvemos o que casa
+ * com a tag dos arquivos. Filtrar pela tag-key do id ao vivo não é possível: a
+ * API rejeita chaves com maiúsculas/underscore.
+ */
+async function resolveKbTagId(knowledgeBaseId: string): Promise<string> {
+  if (knowledgeBaseId.startsWith("kb-")) return knowledgeBaseId;
+  const kbs = await listKnowledgeBases();
+  const oldId = kbs.find((k) => k.id === knowledgeBaseId)?.tags?.oldKbId;
+  return oldId && oldId.length > 0 ? oldId : knowledgeBaseId;
+}
+
+/** Um trecho (passage) de um documento de KB retornado pela busca semântica. */
+export interface KnowledgeBasePassage {
+  /** Texto do trecho (com contexto ao redor, quando aplicável). */
+  content: string;
+  /** Similaridade com a query (quanto maior, mais relevante). */
+  score: number;
+  /** Valor da tag kbId do arquivo de origem (id legado para KBs migradas). */
+  kbId?: string;
+  /** Título/nome do documento de origem. */
+  title?: string;
+  fileId: string;
+  fileKey?: string;
+  /** Tipo do trecho: chunk, summary, consolidated, image. */
+  passageType?: string;
+  pageNumber?: number;
+  position?: number;
+}
+
+/**
+ * READ: busca semântica (RAG) sobre o CONTEÚDO dos documentos das knowledge bases.
+ *
+ * Diferente de listKnowledgeBases (que só lista as KBs), esta função LÊ o texto
+ * indexado e devolve os trechos mais relevantes para a query — o mesmo retrieval
+ * que o bot usa em runtime. Use para validar se uma informação realmente consta
+ * (e como está redigida) numa KB. Sem `knowledgeBaseId`, busca em todas as KBs;
+ * com ele, restringe àquela KB (aceita o id ao vivo `kb_01...` ou o legado `kb-...`).
+ */
+export async function searchKnowledgeBase(args: {
+  query: string;
+  knowledgeBaseId?: string;
+  limit?: number;
+  contextDepth?: number;
+  withContext?: boolean;
+}): Promise<{ passages: KnowledgeBasePassage[]; count: number; kbTagId?: string }> {
+  const tags: Record<string, string> = { source: "knowledge-base" };
+  let kbTagId: string | undefined;
+  if (args.knowledgeBaseId) {
+    kbTagId = await resolveKbTagId(args.knowledgeBaseId);
+    tags.kbId = kbTagId;
+  }
+  const res = await getManagementClient().searchFiles({
+    query: args.query,
+    tags,
+    limit: args.limit,
+    contextDepth: args.contextDepth,
+    withContext: args.withContext,
+  });
+  const passages: KnowledgeBasePassage[] = res.passages.map((p) => ({
+    content: p.content,
+    score: p.score,
+    kbId: p.file.tags?.kbId,
+    title: p.file.tags?.title,
+    fileId: p.file.id,
+    fileKey: p.file.key,
+    passageType: p.meta?.type,
+    pageNumber: p.meta?.pageNumber,
+    position: p.meta?.position,
+  }));
+  return { passages, count: passages.length, kbTagId };
+}
+
 /** Extrai o texto de uma payload de mensagem do Botpress, quando do tipo "text". */
 function extractText(payload: unknown): string | undefined {
   if (payload && typeof payload === "object" && "text" in payload) {
