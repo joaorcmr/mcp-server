@@ -77,6 +77,23 @@ def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
         default=str(Path(__file__).resolve().parent / "bot-quality-report.pdf"),
         help="Output PDF path.",
     )
+    p.add_argument(
+        "--llm-judge",
+        action="store_true",
+        help="Also score each conversation with an OpenAI LLM judge that reads the "
+        "transcript (needs OPENAI_API_KEY). Adds cost; deterministic scoring stays as fallback.",
+    )
+    p.add_argument(
+        "--llm-model",
+        default=None,
+        help="Override the LLM-judge model (default: gpt-4o, or OPENAI_MODEL).",
+    )
+    p.add_argument(
+        "--concurrency",
+        type=int,
+        default=8,
+        help="Parallel workers for fetching/scoring/judging conversations (default: 8).",
+    )
     return p.parse_args(argv)
 
 
@@ -236,6 +253,29 @@ def chart_failed_checks(scores: list[scoring.ConversationScore]) -> Optional[Ima
     return _fig_to_image(fig)
 
 
+def chart_resolution(scores: list[scoring.ConversationScore]) -> Optional[Image]:
+    """Stacked bars: resolved vs not resolved, split by bot-alone vs handed-off."""
+    if not scores:
+        return None
+    no_ho = [s for s in scores if not s.handed_off]
+    ho = [s for s in scores if s.handed_off]
+    cats = ["No handoff\n(bot alone)", "Handed off\nto human"]
+    resolved = [sum(1 for s in no_ho if s.resolved), sum(1 for s in ho if s.resolved)]
+    unresolved = [len(no_ho) - resolved[0], len(ho) - resolved[1]]
+    fig, ax = plt.subplots(figsize=(7, 3.2))
+    b1 = ax.bar(cats, resolved, label="Problem resolved", color="#2e7d32")
+    b2 = ax.bar(cats, unresolved, bottom=resolved, label="Not resolved", color="#c62828")
+    for bars, vals, base in ((b1, resolved, [0, 0]), (b2, unresolved, resolved)):
+        for rect, v, btm in zip(bars, vals, base):
+            if v:
+                ax.text(rect.get_x() + rect.get_width() / 2, btm + v / 2, str(v),
+                        ha="center", va="center", color="white", fontsize=9, fontweight="bold")
+    ax.set_title("Problem resolution: bot self-service vs human handoff")
+    ax.set_ylabel("conversations")
+    ax.legend()
+    return _fig_to_image(fig, width_cm=12)
+
+
 # --- PDF assembly -----------------------------------------------------------
 def build_pdf(
     out_path: str,
@@ -246,6 +286,8 @@ def build_pdf(
     scores: list[scoring.ConversationScore],
     skipped_agent_side: int = 0,
     handoffs: int = 0,
+    llm_enabled: bool = False,
+    llm_model: Optional[str] = None,
 ) -> None:
     styles = getSampleStyleSheet()
     styles.add(ParagraphStyle("Small", parent=styles["Normal"], fontSize=8, leading=10))
@@ -256,8 +298,12 @@ def build_pdf(
 
     story: list[Any] = []
     totals = sum_analytics(records)
-    verdict_counts: Counter = Counter(s.verdict for s in scores)
+    # When the LLM judge ran, the effective verdict is the LLM's (deterministic
+    # is the fallback); otherwise it's the deterministic verdict.
+    verdict_counts: Counter = Counter(s.effective_verdict for s in scores)
     n = len(scores) or 1
+    judged = [s for s in scores if s.llm_verdict is not None]
+    agree = sum(1 for s in judged if s.llm_verdict == s.verdict)
 
     def pct(v: str) -> str:
         return f"{100 * verdict_counts.get(v, 0) / n:.0f}%"
@@ -284,8 +330,12 @@ def build_pdf(
         ],
         ["LLM cost (USD)", f"${totals['llmCost']:.2f}"],
     ]
+    verdict_source = (
+        f"LLM judge: {llm_model}" if llm_enabled else "Deterministic (CHECKLIST.md)"
+    )
     quality_rows = [
-        ["Qualitative (CHECKLIST.md)", ""],
+        ["Qualitative — verdict source", ""],
+        ["Source", verdict_source],
         ["Bot conversations scored", f"{len(scores):,}"],
         ["GOOD", f"{verdict_counts.get(scoring.GOOD, 0)} ({pct(scoring.GOOD)})"],
         ["SOFT FAIL", f"{verdict_counts.get(scoring.SOFT_FAIL, 0)} ({pct(scoring.SOFT_FAIL)})"],
@@ -294,6 +344,10 @@ def build_pdf(
         ["Handoffs to human", f"{handoffs:,}"],
         ["Agent-side convs skipped", f"{skipped_agent_side:,}"],
     ]
+    if llm_enabled and judged:
+        quality_rows.append(
+            ["LLM↔heuristic agreement", f"{100 * agree / len(judged):.0f}% ({agree}/{len(judged)})"]
+        )
 
     def kpi_table(rows: list[list[str]]) -> Table:
         t = Table(rows, colWidths=[6.5 * cm, 4 * cm])
@@ -343,34 +397,112 @@ def build_pdf(
     else:
         story.append(Paragraph("No failed checks across the scored conversations.", body))
 
+    # --- 3b. Self-service resolution (no human handoff) ---
+    story.append(PageBreak())
+    story.append(Paragraph("Self-service resolution — did the bot solve it alone?", h2))
+    no_ho = [s for s in scores if not s.handed_off]
+    ho = [s for s in scores if s.handed_off]
+    res_source = "LLM judge's problem_resolved" if llm_enabled else "GOOD verdict (deterministic proxy)"
+    story.append(
+        Paragraph(
+            "Not escalating to a human does <b>not</b> imply the bot resolved the user's "
+            "problem — a conversation can end with no human and no resolution (the user "
+            f"simply drifted away). Resolution here = <i>{res_source}</i>. The critical "
+            "bucket is <b>no-handoff &amp; not resolved</b>: users the bot neither solved "
+            "for nor escalated.",
+            small,
+        )
+    )
+    story.append(Spacer(1, 0.3 * cm))
+    a = len(no_ho) or 1
+    resolved_no_ho = sum(1 for s in no_ho if s.resolved)
+    unresolved_no_ho = len(no_ho) - resolved_no_ho
+    res_rows = [
+        ["Segment", "Conversations", "Resolved", "Not resolved"],
+        [
+            "Bot alone (no handoff)",
+            f"{len(no_ho)} ({100*len(no_ho)/(len(scores) or 1):.0f}%)",
+            f"{resolved_no_ho} ({100*resolved_no_ho/a:.0f}%)",
+            f"{unresolved_no_ho} ({100*unresolved_no_ho/a:.0f}%)",
+        ],
+        [
+            "Handed off to human",
+            f"{len(ho)} ({100*len(ho)/(len(scores) or 1):.0f}%)",
+            f"{sum(1 for s in ho if s.resolved)}",
+            f"{sum(1 for s in ho if not s.resolved)}",
+        ],
+    ]
+    rt = Table(res_rows, colWidths=[6 * cm, 4 * cm, 4 * cm, 4 * cm])
+    rt.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#263238")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 9),
+                ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#cfd8dc")),
+                ("TEXTCOLOR", (3, 1), (3, -1), colors.HexColor("#c62828")),
+                ("TEXTCOLOR", (2, 1), (2, -1), colors.HexColor("#2e7d32")),
+            ]
+        )
+    )
+    story.append(rt)
+    story.append(Spacer(1, 0.3 * cm))
+    story.append(
+        Paragraph(
+            f"<b>Self-service resolution rate: {100*resolved_no_ho/a:.0f}%</b> "
+            f"— of the {len(no_ho)} conversations the bot handled without a human, "
+            f"<b><font color='#c62828'>{unresolved_no_ho} ({100*unresolved_no_ho/a:.0f}%) ended "
+            "unresolved</font></b> (no human, no solution).",
+            body,
+        )
+    )
+    story.append(Spacer(1, 0.3 * cm))
+    res_chart = chart_resolution(scores)
+    if res_chart:
+        story.append(res_chart)
+
     # --- 4. Per-conversation table ---
     story.append(PageBreak())
     story.append(Paragraph("Per-conversation scores (worst first)", h2))
     if scores:
         rank = {scoring.HARD_FAIL: 0, scoring.SOFT_FAIL: 1, scoring.GOOD: 2}
-        ordered = sorted(scores, key=lambda s: (rank.get(s.verdict, 3), -s.message_count))
-        header = ["Conversation", "Phone", "Verdict", "End state", "HITL", "Msgs", "Top failed checks"]
+        ordered = sorted(
+            scores, key=lambda s: (rank.get(s.effective_verdict, 3), -s.message_count)
+        )
+        if llm_enabled:
+            # Last column is the LLM's reasoning; "det" shows the heuristic verdict
+            # letter so divergences are visible at a glance.
+            header = ["Conversation", "Phone", "Verdict", "det", "End state", "Msgs", "LLM reasoning"]
+            last_w = 7.0 * cm
+        else:
+            header = ["Conversation", "Phone", "Verdict", "End state", "HITL", "Msgs", "Top failed checks"]
+            last_w = 6.2 * cm
         table_rows = [header]
         verdict_cell_styles = []
         for i, s in enumerate(ordered, start=1):
-            failed = ", ".join(s.failed_checks[:3]) or "—"
+            ev = s.effective_verdict
+            if llm_enabled:
+                last_cell = Paragraph(s.llm_reasoning or "—", small)
+                col4 = VERDICT_LABEL.get(s.verdict, "?")[0]  # deterministic letter
+            else:
+                last_cell = Paragraph(", ".join(s.failed_checks[:3]) or "—", small)
+                col4 = s.end_state
             table_rows.append(
                 [
                     Paragraph(s.conversation_id, small),
                     s.phone or "—",
-                    VERDICT_LABEL[s.verdict],
-                    s.end_state,
-                    s.hitl_status,
+                    VERDICT_LABEL[ev],
+                    col4,
+                    s.end_state if llm_enabled else s.hitl_status,
                     str(s.message_count),
-                    Paragraph(failed, small),
+                    last_cell,
                 ]
             )
-            verdict_cell_styles.append(
-                ("TEXTCOLOR", (2, i), (2, i), VERDICT_COLORS[s.verdict])
-            )
+            verdict_cell_styles.append(("TEXTCOLOR", (2, i), (2, i), VERDICT_COLORS[ev]))
         t = Table(
             table_rows,
-            colWidths=[4.6 * cm, 2.6 * cm, 2 * cm, 2.6 * cm, 1.9 * cm, 1.1 * cm, 6.2 * cm],
+            colWidths=[4.0 * cm, 2.4 * cm, 1.9 * cm, 1.0 * cm, 2.2 * cm, 1.0 * cm, last_w],
             repeatRows=1,
         )
         t.setStyle(
@@ -424,6 +556,16 @@ def build_pdf(
         "<font color='#f9a825'>SOFT FAIL</font> = handled but abandoned (timeout) / no explicit "
         "end; <font color='#2e7d32'>GOOD</font> = clean end with none of the above.",
     ]
+    if llm_enabled:
+        method_items.append(
+            f"<b>LLM judge ({llm_model}):</b> the headline verdicts and the "
+            "per-conversation table above come from an OpenAI judge that <i>reads each "
+            "transcript</i> against the same CHECKLIST.md rubric, deciding whether the "
+            "user was actually helped (not just whether a flow reached its end node). The "
+            "deterministic verdict is shown in the <font face='Courier'>det</font> column "
+            "for comparison; the agreement rate between the two is on the summary page. "
+            "Unlike the heuristic, LLM verdicts are not byte-reproducible across runs."
+        )
     for item in method_items:
         story.append(Paragraph("• " + item, small))
         story.append(Spacer(1, 0.12 * cm))
@@ -454,29 +596,69 @@ def main(argv: Optional[list[str]] = None) -> int:
     print("Fetching analytics…", file=sys.stderr)
     records = client.get_analytics(start, end)
 
+    judge_client = None
+    judge_model = None
+    if args.llm_judge:
+        import llm_judge
+
+        try:
+            judge_client = llm_judge.make_client()
+        except Exception as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        judge_model = args.llm_model or llm_judge.default_model()
+        print(f"LLM judge enabled ({judge_model}).", file=sys.stderr)
+
     print("Fetching conversations…", file=sys.stderr)
-    scores: list[scoring.ConversationScore] = []
     skipped_agent_side = 0
     handoffs = 0
-    # Scan generously but only count customer-facing bot conversations toward the
+    # Scan generously but only keep customer-facing bot conversations up to the
     # cap; agent-side (Zendesk/HITL) mirror conversations are skipped, not scored.
     scan_budget = max(args.max_conversations * 5, 250)
+    bot_convs: list[dict[str, Any]] = []
     for conv in client.iter_conversations(after_date=start, before_date=end, max_items=scan_budget):
-        cid = conv.get("id")
-        if not cid:
+        if not conv.get("id"):
             continue
         if not scoring.is_bot_conversation(conv):
             skipped_agent_side += 1
             continue
         if scoring.was_handed_off(conv):
             handoffs += 1
+        bot_convs.append(conv)
+        if len(bot_convs) >= args.max_conversations:
+            break
+
+    # Per-conversation work (fetch messages + HITL, score, optionally LLM-judge)
+    # is I/O-bound, so run it across a thread pool. Each worker uses the shared
+    # clients, which are safe for concurrent independent requests.
+    done = 0
+
+    def process(conv: dict[str, Any]) -> scoring.ConversationScore:
+        cid = conv["id"]
         messages = client.list_all_messages(cid)
         hitl = client.get_hitl_state(cid)
-        scores.append(scoring.score_conversation(conv, messages, hitl))
-        if len(scores) % 25 == 0:
-            print(f"  …{len(scores)} scored", file=sys.stderr)
-        if len(scores) >= args.max_conversations:
-            break
+        score = scoring.score_conversation(conv, messages, hitl)
+        score.handed_off = scoring.was_handed_off(conv)
+        if judge_client is not None:
+            import llm_judge
+
+            verdict = llm_judge.judge_conversation(
+                judge_client, conv, messages, score, score.handed_off, model=judge_model
+            )
+            if verdict is not None:
+                llm_judge.attach_verdict(score, verdict)
+        return score
+
+    print(f"Scoring {len(bot_convs)} bot conversation(s) with {args.concurrency} workers…", file=sys.stderr)
+    scores: list[scoring.ConversationScore] = []
+    from concurrent.futures import ThreadPoolExecutor
+
+    with ThreadPoolExecutor(max_workers=args.concurrency) as pool:
+        for score in pool.map(process, bot_convs):
+            scores.append(score)
+            done += 1
+            if done % 25 == 0:
+                print(f"  …{done}/{len(bot_convs)} scored", file=sys.stderr)
 
     print(
         f"Scored {len(scores)} bot conversation(s); skipped {skipped_agent_side} agent-side.",
@@ -492,6 +674,8 @@ def main(argv: Optional[list[str]] = None) -> int:
         scores,
         skipped_agent_side=skipped_agent_side,
         handoffs=handoffs,
+        llm_enabled=bool(judge_client),
+        llm_model=judge_model,
     )
     print(f"Done. {len(scores)} conversation(s) scored. Report at {args.out}", file=sys.stderr)
     return 0

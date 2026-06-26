@@ -56,7 +56,15 @@ def load_env(env_path: Optional[Path] = None) -> dict[str, str]:
             if key:
                 env[key] = value
     # OS env overrides file values.
-    for key in ("BOTPRESS_TOKEN", "BOTPRESS_BOT_ID", "BOTPRESS_WORKSPACE_ID", "BOTPRESS_API_BASE_URL"):
+    for key in (
+        "BOTPRESS_TOKEN",
+        "BOTPRESS_BOT_ID",
+        "BOTPRESS_WORKSPACE_ID",
+        "BOTPRESS_API_BASE_URL",
+        "OPENAI_API_KEY",
+        "OPENAI_MODEL",
+        "OPENAI_BASE_URL",
+    ):
         if os.environ.get(key):
             env[key] = os.environ[key].strip()
     return env

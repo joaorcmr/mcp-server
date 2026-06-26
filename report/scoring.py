@@ -67,10 +67,35 @@ class ConversationScore:
     created_at: Optional[str]
     updated_at: Optional[str]
     checks: list[CheckResult] = field(default_factory=list)
+    # Whether this conversation escalated to a human (hitl#downstream tag).
+    handed_off: bool = False
+    # Optional LLM-judge overlay (populated only with --llm-judge). The
+    # deterministic verdict above is always computed; these augment it.
+    llm_verdict: Optional[str] = None
+    llm_reasoning: Optional[str] = None
+    llm_user_satisfied: Optional[bool] = None
+    llm_problem_resolved: Optional[bool] = None
+    llm_confidence: Optional[str] = None
 
     @property
     def failed_checks(self) -> list[str]:
         return [c.name for c in self.checks if not c.passed]
+
+    @property
+    def effective_verdict(self) -> str:
+        """LLM verdict when present, else the deterministic one."""
+        return self.llm_verdict or self.verdict
+
+    @property
+    def resolved(self) -> bool:
+        """Was the user's problem actually solved?
+
+        Prefers the LLM judge's explicit ``problem_resolved`` read when present;
+        otherwise falls back to the deterministic proxy (a clean GOOD verdict).
+        """
+        if self.llm_problem_resolved is not None:
+            return self.llm_problem_resolved
+        return self.verdict == GOOD
 
 
 # Integration name of the human-agent side of a HITL handoff. The bot never

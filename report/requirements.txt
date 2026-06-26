@@ -2,3 +2,5 @@
 # (urllib/json), so no HTTP library is needed here.
 reportlab>=4.0
 matplotlib>=3.7
+# Only needed for the optional --llm-judge mode (OpenAI LLM judge).
+openai>=1.40

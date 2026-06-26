@@ -48,15 +48,48 @@ Output defaults to `report/bot-quality-report.pdf`.
 | `--start` / `--end` | — / now | Explicit ISO 8601 window |
 | `--max-conversations N` | 200 | Cap on conversations scored (each one fetches its messages + HITL state) |
 | `--out PATH` | `report/bot-quality-report.pdf` | Output file |
+| `--llm-judge` | off | Add an OpenAI LLM judge that reads each transcript (see below) |
+| `--llm-model NAME` | `gpt-4o` | Override the judge model (or set `OPENAI_MODEL`) |
+
+## Optional: LLM judge (`--llm-judge`)
+
+The deterministic scorer keys on signals — it counts a conversation GOOD when the
+flow reaches `wf-conversation-end`. But a flow reaching its end node is **not**
+proof the user was helped: a frustrated user who gives up can still be walked into
+the closing message. The LLM judge **reads the transcript** (plus the
+deterministic signals) and decides whether the user's actual problem was solved
+and whether they left satisfied, using `CHECKLIST.md` as its rubric.
+
+```bash
+# Needs OPENAI_API_KEY in the repo-root .env
+python report/generate_report.py --days 7 --llm-judge
+python report/generate_report.py --days 7 --llm-judge --llm-model gpt-4o-mini
+```
+
+- **Opt-in and non-destructive.** Deterministic scoring always runs; the LLM
+  verdict overlays it. When `--llm-judge` is on, the headline verdicts and the
+  per-conversation table use the LLM's call, the `det` column shows the
+  deterministic letter (G/S/H) so divergences are visible, and the summary page
+  reports the **LLM↔heuristic agreement** rate. If a call fails, that
+  conversation falls back to the deterministic verdict.
+- **Cost & reproducibility.** One API call per scored conversation — roughly a
+  dollar or two per ~60 conversations on `gpt-4o`, less on `gpt-4o-mini`. Unlike
+  the heuristic, LLM verdicts are not byte-reproducible across runs.
+- **Config.** `OPENAI_API_KEY` (required), optional `OPENAI_MODEL` and
+  `OPENAI_BASE_URL` (for an OpenAI-compatible endpoint), all read from the
+  repo-root `.env`. Install the SDK with the same `pip install -r
+  report/requirements.txt`.
 
 ## Files
 
 - `botpress_api.py` — stdlib (urllib) REST client: analytics, conversations,
   messages, HITL state.
-- `scoring.py` — CHECKLIST.md → verdict. **Tune the constants at the top**
-  (`WF_MAIN`, `WF_CONVERSATION_END`, `WF_TIMEOUT`, `WF_ERROR`, the fallback/
-  generic-help text, `TRAILING_INCOMING_THRESHOLD`) if the bot's workflow names
-  or copy change.
+- `scoring.py` — CHECKLIST.md → deterministic verdict. **Tune the constants at
+  the top** (`WF_MAIN`, `WF_CONVERSATION_END`, `WF_TIMEOUT`, `WF_ERROR`, the
+  fallback/generic-help text, `TRAILING_INCOMING_THRESHOLD`) if the bot's
+  workflow names or copy change.
+- `llm_judge.py` — optional OpenAI judge (rubric prompt + structured-output
+  verdict). Only imported when `--llm-judge` is used.
 - `generate_report.py` — CLI, fetch pipeline and PDF rendering.
 
 ## Scope: which conversations are scored
