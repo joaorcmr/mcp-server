@@ -1,0 +1,4 @@
+# PDF report dependencies. The Botpress REST client uses only the Python stdlib
+# (urllib/json), so no HTTP library is needed here.
+reportlab>=4.0
+matplotlib>=3.7

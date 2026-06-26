@@ -13,6 +13,7 @@ import { findTableRowsTool } from "./tools/find-table-rows.tool.js";
 import { listConversationsTool } from "./tools/list-conversations.tool.js";
 import { listMessagesTool } from "./tools/list-messages.tool.js";
 import { getBotLogsTool } from "./tools/get-bot-logs.tool.js";
+import { getBotAnalyticsTool } from "./tools/get-bot-analytics.tool.js";
 import { getStateTool } from "./tools/get-state.tool.js";
 import { setStateTool } from "./tools/set-state.tool.js";
 import { patchStateTool } from "./tools/patch-state.tool.js";
@@ -46,6 +47,7 @@ const tools: ToolDefinition[] = [
   listConversationsTool,
   listMessagesTool,
   getBotLogsTool,
+  getBotAnalyticsTool,
   getStateTool,
   setStateTool,
   patchStateTool,

@@ -98,14 +98,14 @@ Source: <https://botpress.com/docs/api-reference/introduction> + the docs index.
 - Runtime `GET /v1/chat/conversations` → `list_conversations`
 - Runtime `GET /v1/chat/messages` → `list_messages`
 - Admin `GET /v1/admin/bots/{botId}/logs` → `get_bot_logs`
+- Admin `GET /v1/admin/bots/{botId}/analytics` → `get_bot_analytics` (volume/usuários/sessões + uso de LLM,
+  em buckets diários — a fonte do painel de Analytics)
 - Runtime state `GET/PATCH/POST /v1/chat/states/...` → `get_state` / `patch_state` / `set_state` (+ `release_hitl`)
 
 **Not yet wrapped — high value for this checklist:**
 - **`GET /v1/chat/events`** (+ `/{eventId}`) — the event stream behind a conversation: workflow starts,
   intent/NLU events, card executions. The richest source for Axis 1 & 2 ("which tool ran, which intent
   registered") beyond what `origin` tags give. **Strongest candidate to add next.**
-- **`GET /v1/admin/bots/{botId}/analytics`** — aggregate bot analytics (volume, resolution, escalation
-  rates). Turns this per-conversation checklist into fleet-wide KPIs.
 - **`GET /v1/admin/bots/{botId}/issues`** (+ `POST`, + `/issues/events`) — Botpress-detected bot issues and
   their event history; a ready-made "what's going wrong" feed.
 - **`GET /v1/admin/integrations/{integrationId}/logs`** — integration-side logs (e.g. Zendesk/WhatsApp

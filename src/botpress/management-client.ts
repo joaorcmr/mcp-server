@@ -421,6 +421,59 @@ export async function getBotLogs(filters: {
   return { logs: res.logs, nextToken: res.nextToken };
 }
 
+/**
+ * Um bucket (geralmente diário) das métricas agregadas do bot, como aparecem
+ * no painel de Analytics do Botpress. Espelha o `GetBotAnalyticsResponse` do
+ * @botpress/client. Campos de volume/usuários/sessões + uso de LLM (custo/tokens).
+ */
+export interface BotAnalyticsRecord {
+  /** Início (inclusive) do período deste bucket (ISO 8601). */
+  startDateTimeUtc: string;
+  /** Fim (inclusive) do período deste bucket (ISO 8601). */
+  endDateTimeUtc: string;
+  returningUsers: number;
+  newUsers: number;
+  sessions: number;
+  /** Depreciado pelo Botpress: use `userMessages`. */
+  messages: number;
+  userMessages: number;
+  botMessages: number;
+  events: number;
+  /** Contagem de eventos por tipo. */
+  eventTypes: Record<string, number>;
+  /** Contagem de eventos customizados (emitidos pelo bot). */
+  customEvents: Record<string, number>;
+  /** Uso de LLM: chamadas, erros, tokens, latência (ms), velocidade e custo (USD). */
+  llm: {
+    calls: number;
+    errors: number;
+    inputTokens: number;
+    outputTokens: number;
+    latency: { mean: number; sd: number; min: number; max: number };
+    tokensPerSecond: { mean: number; sd: number; min: number; max: number };
+    cost: { sum: number; mean: number; sd: number; min: number; max: number };
+  };
+}
+
+/**
+ * READ: métricas agregadas do bot (Admin API getBotAnalytics) — a mesma fonte do
+ * painel de Analytics. Retorna uma lista de buckets (normalmente um por dia) no
+ * período [startDate, endDate] (ambos ISO 8601, obrigatórios), com volume de
+ * mensagens, usuários novos/recorrentes, sessões, eventos e uso/custo de LLM.
+ */
+export async function getBotAnalytics(filters: {
+  startDate: string;
+  endDate: string;
+}): Promise<{ records: BotAnalyticsRecord[] }> {
+  const { botId } = getManagementConfig();
+  const res = await getManagementClient().getBotAnalytics({
+    id: botId,
+    startDate: filters.startDate,
+    endDate: filters.endDate,
+  });
+  return { records: res.records as BotAnalyticsRecord[] };
+}
+
 /** Tipos de recurso aos quais um State pode estar vinculado. */
 export type StateType = "conversation" | "user" | "bot" | "integration" | "workflow";
 

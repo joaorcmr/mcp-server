@@ -5,3 +5,8 @@ dist/
 *.log
 .mcp*
 bot/*
+
+# Python report artifacts
+report/.venv/
+report/__pycache__/
+report/*.pdf
