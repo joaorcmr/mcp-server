@@ -1,3 +1,51 @@
+# Reports
+
+Two PDF reports share the same `.env`, REST client (`botpress_api.py`) and
+`scoring.py` helpers:
+
+- **`generate_report.py`** — overall bot quality (GOOD / SOFT_FAIL / HARD_FAIL),
+  documented below.
+- **`escalation_report.py`** — escalation correctness (escalated vs not), below.
+
+---
+
+## Escalation report (`escalation_report.py`)
+
+Splits a sample of conversations into **two universes** and uses an OpenAI judge
+to grade the bot's escalate / don't-escalate decision:
+
+1. **Escalated to a human** (n1 = business hours, n2 = box-limit/SLA) — what %
+   was escalated **correctly** (with 2 examples) vs **unnecessarily** (2 examples).
+2. **Not escalated** — what actually happened (resolved & satisfied, outside
+   business hours, abandoned, …, with 5 diverse examples) and what %
+   **should have escalated but didn't** vs what % **correctly did not**.
+
+```bash
+python report/escalation_report.py --days 7                  # full sample (cap 400)
+python report/escalation_report.py --days 7 --sample-size 25 # small real run
+python report/escalation_report.py --days 7 --sample-size 20 --no-llm  # free segmentation test
+```
+
+| Flag | Default | Meaning |
+|------|---------|---------|
+| `--days N` | 7 | Window size; ignored if `--start` is given |
+| `--start` / `--end` | — / now | Explicit ISO 8601 window |
+| `--sample-size N` | 400 | Cap on customer-facing bot conversations analyzed |
+| `--llm-model NAME` | `gpt-5.5-2026-04-23` | Judge model (or set `OPENAI_MODEL`) |
+| `--no-llm` | off | Segment escalated/not + tier only, no judge (free) |
+| `--out PATH` | `report/escalation-report.pdf` | Output file |
+
+- **Escalation detection** keys on the authoritative `hitl#downstream` tag (plus an
+  active `hitl#hitl` state); agent-side Zendesk mirror conversations are excluded
+  (`scoring.is_bot_conversation`). The **n1/n2 tier** is best-effort from the names
+  of workflows the conversation traversed (`bot/bot.json`), so many escalations are
+  tier *unknown* — this does not affect the escalated/not split or the verdict.
+- **Judge** (`escalation_judge.py`) reads each transcript with OpenAI Structured
+  Outputs; one call per conversation. Needs `OPENAI_API_KEY`. Uses the GPT-5
+  `max_completion_tokens` contract with a fallback to legacy `max_tokens`.
+
+---
+
 # Quality of Bot — PDF report
 
 Generates a PDF that combines the **quantitative** Botpress Analytics KPIs (the
