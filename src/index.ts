@@ -8,6 +8,8 @@ import { startWorkflowTool } from "./tools/start-workflow.tool.js";
 import { listTablesTool } from "./tools/list-tables.tool.js";
 import { listKnowledgeBasesTool } from "./tools/list-knowledge-bases.tool.js";
 import { searchKnowledgeBaseTool } from "./tools/search-knowledge-base.tool.js";
+import { upsertKbDocumentTool } from "./tools/upsert-kb-document.tool.js";
+import { getKbDocumentTool } from "./tools/get-kb-document.tool.js";
 import { getTableTool } from "./tools/get-table.tool.js";
 import { findTableRowsTool } from "./tools/find-table-rows.tool.js";
 import { listConversationsTool } from "./tools/list-conversations.tool.js";
@@ -42,6 +44,8 @@ const tools: ToolDefinition[] = [
   listTablesTool,
   listKnowledgeBasesTool,
   searchKnowledgeBaseTool,
+  upsertKbDocumentTool,
+  getKbDocumentTool,
   getTableTool,
   findTableRowsTool,
   listConversationsTool,

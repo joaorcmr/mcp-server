@@ -151,6 +151,32 @@ Busca semântica (RAG) sobre o **conteúdo** dos documentos das knowledge bases 
 
 > Por baixo, uma KB é um conjunto de arquivos (Files API) com tag `source: "knowledge-base"` e `kbId: <id>`. Para KBs migradas, esse `kbId` é o id **legado** (`kb-...`), por isso o id ao vivo é convertido via `oldKbId`.
 
+### `upsert_kb_document` (WRITE)
+
+Cria ou **substitui** um documento numa knowledge base, via Files API (`uploadFile`) — o espelho de escrita de `search_knowledge_base`. Cuida das tags (`source: "knowledge-base"`, `kbId`, `title`) e da indexação em vector storage (`index: true`), no mesmo formato que o Studio usa.
+
+**Entrada:**
+- `knowledgeBaseId` (string, obrigatório) — KB de destino; aceita o id ao vivo (`kb_01...`) ou o legado (`kb-...`).
+- `title` (string, obrigatório) — título do documento como aparece no Studio (ex.: `15. ... v1.0.md`).
+- `content` (string, obrigatório) — conteúdo completo (markdown recomendado).
+- `key` (string, opcional) — key única do arquivo; padrão `<kbTagId>/<title>`.
+- `contentType` (string, opcional) — padrão `text/markdown`.
+- `tags` (record, opcional) — tags extras a preservar (ex.: `dsId`/`dsType` de docs rich-text do Studio). O upload **substitui** as tags do arquivo — ao sobrescrever um doc existente, repasse as tags originais obtidas via `get_kb_document`.
+
+**Saída:** `{ ok, fileId, key, kbTagId, title, status, contentType, tags }`.
+
+> ⚠️ Mesma `key` = **sobrescreve** o documento existente (upsert). A indexação é assíncrona: aguarde alguns instantes antes de validar com `search_knowledge_base`. Não há API pública para **criar a KB em si** — isso é feito no Studio; esta tool adiciona documentos a uma KB existente.
+
+### `get_kb_document` (READ, arquivo inteiro)
+
+Baixa o **conteúdo bruto completo** de um documento de KB, via Files API (`getFile` → presigned URL de download). Complementa a `search_knowledge_base` (que só devolve trechos via RAG): use quando precisar do arquivo inteiro — em especial no ciclo de edição **ler → editar → republicar** com `upsert_kb_document` usando a mesma `key`, `contentType` e `tags` (sem isso, o restante do documento e o vínculo com o editor do Studio seriam destruídos).
+
+**Entrada:**
+- `fileId` (string, opcional) — id do arquivo (`file_01...`), como retornado pela `search_knowledge_base`; **ou**
+- `knowledgeBaseId` + `title` ou `key` (strings, opcionais) — localiza o arquivo pelas tags via `listFiles`.
+
+**Saída:** `{ ok, fileId, key, title, contentType, size, status, tags, content }`.
+
 ## Próximas tools (roadmap)
 
 Usarão majoritariamente a **Management API** (`@botpress/client`, já instalado), com a config em `getManagementConfig()`:

@@ -267,6 +267,142 @@ export async function searchKnowledgeBase(args: {
   return { passages, count: passages.length, kbTagId };
 }
 
+/** Visão normalizada de um documento de KB recém-criado/atualizado. */
+export interface KnowledgeBaseDocument {
+  fileId: string;
+  key: string;
+  /** Valor gravado na tag kbId (id legado para KBs migradas, ao vivo para novas). */
+  kbTagId: string;
+  title: string;
+  status?: string;
+  contentType?: string;
+  tags?: Record<string, string>;
+}
+
+/**
+ * WRITE: cria ou SUBSTITUI um documento numa knowledge base (Files API uploadFile).
+ *
+ * Por baixo, um documento de KB é um arquivo com as tags `source: "knowledge-base"`,
+ * `kbId` e `title`, indexado no vector storage (`index: true`) — o mesmo formato que
+ * o Studio usa. Aceita o id ao vivo (`kb_01...`) ou o legado (`kb-...`) e resolve a
+ * tag correta via resolveKbTagId. Se já existir um arquivo com a mesma `key`, ele é
+ * sobrescrito e reindexado (upsert). A indexação é assíncrona: o arquivo sobe na
+ * hora, mas pode levar alguns instantes até aparecer na busca semântica.
+ */
+export async function upsertKnowledgeBaseDocument(args: {
+  knowledgeBaseId: string;
+  title: string;
+  content: string;
+  key?: string;
+  contentType?: string;
+  /**
+   * Tags extras a preservar no arquivo (ex.: dsId/dsType de docs rich-text do
+   * Studio). O uploadFile SUBSTITUI as tags do arquivo — ao sobrescrever um doc
+   * existente, repasse as tags originais (via getKnowledgeBaseDocument) para não
+   * quebrar o vínculo com o editor do Studio.
+   */
+  tags?: Record<string, string>;
+}): Promise<KnowledgeBaseDocument> {
+  const kbTagId = await resolveKbTagId(args.knowledgeBaseId);
+  const key = args.key ?? `${kbTagId}/${args.title}`;
+  const res = await getManagementClient().uploadFile({
+    key,
+    content: args.content,
+    contentType: args.contentType ?? "text/markdown",
+    index: true,
+    tags: {
+      ...args.tags,
+      source: "knowledge-base",
+      kbId: kbTagId,
+      title: args.title,
+    },
+  });
+  return {
+    fileId: res.file.id,
+    key: res.file.key,
+    kbTagId,
+    title: args.title,
+    status: res.file.status,
+    contentType: res.file.contentType,
+    tags: res.file.tags,
+  };
+}
+
+/** Documento de KB com o conteúdo bruto completo baixado da presigned URL. */
+export interface KnowledgeBaseDocumentContent {
+  fileId: string;
+  key: string;
+  title?: string;
+  contentType?: string;
+  size?: number;
+  status?: string;
+  tags?: Record<string, string>;
+  /** Conteúdo bruto completo do arquivo (markdown, HTML, etc.). */
+  content: string;
+}
+
+/**
+ * READ (arquivo inteiro): baixa o CONTEÚDO BRUTO completo de um documento de KB.
+ *
+ * Complementa a searchKnowledgeBase (que só devolve trechos via RAG): getFile
+ * (`GET /v1/files/{id}`) retorna uma presigned URL temporária de download, de
+ * onde baixamos o arquivo inteiro — essencial para editar um documento existente
+ * sem destruir o restante (ler → editar → upsertKnowledgeBaseDocument com a
+ * mesma key). Aceita o fileId direto (retornado pela busca) ou, na falta dele,
+ * localiza o arquivo por knowledgeBaseId + title/key via listFiles com as
+ * mesmas tags usadas na escrita.
+ */
+export async function getKnowledgeBaseDocument(args: {
+  fileId?: string;
+  knowledgeBaseId?: string;
+  title?: string;
+  key?: string;
+}): Promise<KnowledgeBaseDocumentContent> {
+  const bp = getManagementClient();
+  let fileId = args.fileId;
+
+  if (!fileId) {
+    if (!args.knowledgeBaseId || (!args.title && !args.key)) {
+      throw new Error(
+        "Informe fileId, ou knowledgeBaseId junto com title ou key, para localizar o documento.",
+      );
+    }
+    const kbTagId = await resolveKbTagId(args.knowledgeBaseId);
+    const tags: Record<string, string> = { source: "knowledge-base", kbId: kbTagId };
+    if (args.title) tags.title = args.title;
+    const res = await bp.listFiles({ tags });
+    const match = args.key ? res.files.find((f) => f.key === args.key) : res.files[0];
+    if (!match) {
+      throw new Error(
+        `Nenhum documento encontrado na KB ${args.knowledgeBaseId} com ${
+          args.key ? `key "${args.key}"` : `title "${args.title}"`
+        }.`,
+      );
+    }
+    fileId = match.id;
+  }
+
+  const { file } = await bp.getFile({ id: fileId });
+  if (!file.url) {
+    throw new Error(`Arquivo ${fileId} não retornou URL de download (status: ${file.status}).`);
+  }
+  const download = await fetch(file.url);
+  if (!download.ok) {
+    throw new Error(`Falha ao baixar o conteúdo do arquivo ${fileId}: HTTP ${download.status}.`);
+  }
+  const content = await download.text();
+  return {
+    fileId: file.id,
+    key: file.key,
+    title: file.tags?.title,
+    contentType: file.contentType,
+    size: file.size ?? undefined,
+    status: file.status,
+    tags: file.tags,
+    content,
+  };
+}
+
 /** Extrai o texto de uma payload de mensagem do Botpress, quando do tipo "text". */
 function extractText(payload: unknown): string | undefined {
   if (payload && typeof payload === "object" && "text" in payload) {
