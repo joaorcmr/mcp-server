@@ -4209,7 +4209,7 @@
               "type": "transition",
               "condition": {
                 "type": "expression",
-                "payload": "event.preview == \"Vamos lá!\""
+                "payload": "event.preview == \"Vamos começar?\" || event.preview == \"Vamos lá!\""
               },
               "category": "Flow Logic",
               "nodeId": "nd-c9ccb87fc3",
@@ -4218,9 +4218,9 @@
                   "condition": false
                 },
                 "suggestion": {},
-                "label": "NPS"
+                "label": "Pesquisa Crônicos"
               },
-              "label": "NPS",
+              "label": "Pesquisa Crônicos",
               "description": "",
               "destination": {
                 "node": "nd-6be8586544"
