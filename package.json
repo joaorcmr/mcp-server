@@ -1,6 +1,6 @@
 {
   "name": "botpress-mcp-server",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "MCP server that bridges Claude Code and the Botpress API.",
   "type": "module",
@@ -11,7 +11,8 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "smoke": "tsx scripts/smoke-test.ts"
   },
   "engines": {
     "node": ">=20"

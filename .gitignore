@@ -3,3 +3,7 @@ dist/
 .env
 .env.local
 *.log
+.DS_Store
+
+# Diagnósticos com dados internos/pessoais — repo remoto é público
+docs/
